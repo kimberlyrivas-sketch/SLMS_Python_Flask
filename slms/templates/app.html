@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Library System</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- TOAST -->
+<div id="toast" class="toast" style="display:none"></div>
+
+<div class="layout">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">📚 LibrarySys</div>
+      <div class="brand-role" id="roleLabel"></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="userAvatar"></div>
+        <div>
+          <div class="user-name" id="userName"></div>
+          <div class="user-role" id="userRoleSm"></div>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="doLogout()">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <div class="main-wrap">
+    <header class="topbar">
+      <h1 class="page-title" id="pageTitle">Dashboard</h1>
+      <button class="btn btn-primary btn-sm" onclick="toggleChat()">💬 AI Assistant</button>
+    </header>
+    <main class="main-content" id="mainContent">
+      <!-- dynamic content injected here -->
+    </main>
+  </div>
+</div>
+
+<!-- ── CHATBOT ── -->
+<div class="chatbot" id="chatbot" style="display:none">
+  <div class="chatbot-header">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="chatbot-icon">📚</div>
+      <div>
+        <div class="chatbot-title">Library Assistant</div>
+        <div class="chatbot-sub">AI-powered</div>
+      </div>
+    </div>
+    <button class="chatbot-close" onclick="toggleChat()">×</button>
+  </div>
+  <div class="chatbot-messages" id="chatMessages"></div>
+  <div class="chatbot-input-row">
+    <input id="chatInput" placeholder="Ask about books, borrows…" onkeydown="if(event.key==='Enter')sendChat()">
+    <button id="chatSend" onclick="sendChat()">Send</button>
+  </div>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────
+const CATEGORY_COLORS = {{ category_colors|safe }};
+const USER = {{ user|tojson }};
+let activeTab = 'dashboard';
+let chatMessages = [
+  {role:'assistant', content:"Hi! I'm your Library Assistant. Ask me about books, your borrows, reservations, or anything about the library!"}
+];
+
+const NAV = {
+  librarian: [{id:'dashboard',label:'Dashboard',icon:'⊞'},{id:'books',label:'Books',icon:'📚'},{id:'users',label:'Users',icon:'👥'},{id:'analytics',label:'Analytics',icon:'📊'}],
+  staff:     [{id:'dashboard',label:'Dashboard',icon:'⊞'},{id:'requests',label:'Requests',icon:'📋'},{id:'analytics',label:'Analytics',icon:'📊'}],
+  student:   [{id:'dashboard',label:'Dashboard',icon:'⊞'},{id:'browse',label:'Browse',icon:'🔍'},{id:'mybooks',label:'My Books',icon:'📖'}],
+  teacher:   [{id:'dashboard',label:'Dashboard',icon:'⊞'},{id:'browse',label:'Browse',icon:'🔍'},{id:'mybooks',label:'My Books',icon:'📖'}],
+};
+
+// ── INIT ──────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('userAvatar').textContent = USER.username[0].toUpperCase();
+  document.getElementById('userName').textContent = USER.username;
+  document.getElementById('userRoleSm').textContent = USER.role;
+  document.getElementById('roleLabel').textContent = USER.role.charAt(0).toUpperCase() + USER.role.slice(1) + ' Portal';
+  buildNav();
+  loadChatHistory();
+  navigate('dashboard');
+});
+
+function buildNav() {
+  const items = NAV[USER.role] || [];
+  const nav = document.getElementById('sidebarNav');
+  nav.innerHTML = items.map(item => `
+    <button class="nav-item ${item.id === activeTab ? 'active' : ''}" onclick="navigate('${item.id}')" id="nav-${item.id}">
+      <span class="nav-icon">${item.icon}</span>${item.label}
+      ${item.id === 'requests' ? '<span class="nav-badge" id="reqBadge" style="display:none"></span>' : ''}
+    </button>
+  `).join('');
+}
+
+function navigate(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('nav-' + tab);
+  if (el) el.classList.add('active');
+  const labels = {dashboard:'Dashboard',books:'Books',users:'Users',analytics:'Analytics',requests:'Requests',browse:'Browse',mybooks:'My Books'};
+  document.getElementById('pageTitle').textContent = labels[tab] || 'Dashboard';
+  const mc = document.getElementById('mainContent');
+  mc.innerHTML = '<div class="loading">Loading…</div>';
+  if (tab === 'dashboard') renderDashboard();
+  else if (tab === 'books') renderBooks();
+  else if (tab === 'users') renderUsers();
+  else if (tab === 'analytics') renderAnalytics();
+  else if (tab === 'requests') renderRequests();
+  else if (tab === 'browse') renderBrowse();
+  else if (tab === 'mybooks') renderMyBooks();
+}
+
+// ── UTILITIES ─────────────────────────────────────────────
+function badge(label, type) {
+  const styles = {
+    borrowed:{bg:'#E6F1FB',color:'#185FA5'}, returned:{bg:'#EAF3DE',color:'#3B6D11'},
+    overdue:{bg:'#FCEBEB',color:'#A32D2D'}, pending:{bg:'#FAEEDA',color:'#854F0B'},
+    approved:{bg:'#EAF3DE',color:'#3B6D11'}, declined:{bg:'#FCEBEB',color:'#A32D2D'},
+    archived:{bg:'#F1EFE8',color:'#5F5E5A'}, active:{bg:'#EAF3DE',color:'#3B6D11'},
+    info:{bg:'#E6F1FB',color:'#185FA5'}, success:{bg:'#EAF3DE',color:'#3B6D11'},
+    warning:{bg:'#FAEEDA',color:'#854F0B'}, danger:{bg:'#FCEBEB',color:'#A32D2D'},
+  };
+  const s = styles[type] || styles.info;
+  return `<span style="background:${s.bg};color:${s.color};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;display:inline-block">${label}</span>`;
+}
+
+function catBadge(cat) {
+  return `<span style="font-size:11px;background:#E6F1FB;color:#185FA5;padding:2px 7px;border-radius:4px;font-weight:600">${cat}</span>`;
+}
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = type === 'success' ? '#0F6E56' : '#854F0B';
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+async function doLogout() {
+  await fetch('/api/logout', {method:'POST'});
+  window.location.href = '/login';
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────
+async function renderDashboard() {
+  const [borrows, requests, reservations, books] = await Promise.all([
+    fetch('/api/borrows').then(r=>r.json()),
+    fetch('/api/requests').then(r=>r.json()),
+    fetch('/api/reservations').then(r=>r.json()),
+    fetch('/api/books').then(r=>r.json()),
+  ]);
+  const role = USER.role;
+  const totalBorrowed = borrows.filter(b=>b.status==='borrowed').length;
+  const overdue = borrows.filter(b=>b.status==='overdue').length;
+  const pendingReqs = requests.filter(r=>r.status==='pending').length;
+  const myBorrows = borrows.filter(b=>b.userId===USER.id && b.status==='borrowed').length;
+  const myPending = requests.filter(r=>r.studentId===USER.id && r.status==='pending').length;
+  const myRes = reservations.filter(r=>r.userId===USER.id && r.status==='pending').length;
+  const recent = borrows.slice(-5).reverse();
+  let statsHtml = '';
+  if (role==='librarian'||role==='staff') {
+    statsHtml = `<div class="stat-grid">
+      ${statCard('Active Books', books.filter(b=>b.status!=='archived').length, 'in circulation', '#185FA5')}
+      ${statCard('Borrowed', totalBorrowed, 'active loans', '#0F6E56')}
+      ${statCard('Overdue', overdue, 'need attention', '#A32D2D')}
+      ${statCard('Pending', pendingReqs, 'awaiting approval', '#854F0B')}
+    </div>`;
+  } else {
+    statsHtml = `<div class="stat-grid">
+      ${statCard('My Borrows', myBorrows + (role==='student'?' / 3':''), 'active', '#185FA5')}
+      ${statCard('My Requests', myPending, 'pending', '#854F0B')}
+      ${statCard('Reservations', myRes, 'active', '#534AB7')}
+    </div>`;
+  }
+  document.getElementById('mainContent').innerHTML = `
+    <div class="view-pad">
+      <div style="margin-bottom:1.25rem">
+        <h2 class="view-title">Welcome back, ${USER.username} 👋</h2>
+        <div class="view-sub" style="text-transform:capitalize">${USER.role} Dashboard</div>
+      </div>
+      ${statsHtml}
+      <div class="card">
+        <div class="card-title">Recent activity</div>
+        ${recent.map(b=>`
+          <div class="activity-row">
+            <div>
+              <div style="font-size:13px;font-weight:500">${b.bookTitle}</div>
+              <div style="font-size:11px;color:var(--text-sec)">${b.username} · ${b.borrowedAt}</div>
+            </div>
+            ${badge(b.status, b.status)}
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function statCard(label, value, sub, color) {
+  return `<div class="stat-card">
+    <div class="stat-label">${label}</div>
+    <div class="stat-value" style="color:var(--text-pri)">${value}</div>
+    <div class="stat-sub">${sub}</div>
+  </div>`;
+}
+
+// ── BOOKS ─────────────────────────────────────────────────
+async function renderBooks() {
+  const books = await fetch('/api/books').then(r=>r.json());
+  const categories = [...new Set(books.map(b=>b.category))];
+  document.getElementById('mainContent').innerHTML = `
+    <div class="view-pad">
+      <div class="view-header">
+        <h2 class="view-title">Books</h2>
+        <button class="btn btn-primary btn-sm" onclick="openAddBook()">+ Add Book</button>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input id="bookSearch" placeholder="Search title or author…" class="search-input" oninput="filterBooks()" style="flex:1">
+        <select id="bookCat" class="select-input" onchange="filterBooks()">
+          <option value="all">All categories</option>
+          ${categories.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="table-header" style="grid-template-columns:2fr 1.5fr 1fr 0.7fr 0.7fr 1fr">
+        <span>Title</span><span>Author</span><span>Category</span><span>Copies</span><span>Price</span><span>Actions</span>
+      </div>
+      <div id="bookList"></div>
+    </div>
+    ${bookModal()}`;
+  window._books = books;
+  filterBooks();
+}
+
+function filterBooks() {
+  const q = document.getElementById('bookSearch').value.toLowerCase();
+  const cat = document.getElementById('bookCat').value;
+  const filtered = window._books.filter(b =>
+    (b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)) &&
+    (cat === 'all' || b.category === cat));
+  document.getElementById('bookList').innerHTML = filtered.length === 0
+    ? '<div class="empty">No books found.</div>'
+    : filtered.map(book => `
+      <div class="table-row" style="grid-template-columns:2fr 1.5fr 1fr 0.7fr 0.7fr 1fr">
+        <div><div style="font-size:13px;font-weight:500">${book.title}</div>${book.status==='archived'?badge('archived','archived'):''}</div>
+        <div style="font-size:12px;color:var(--text-sec)">${book.author}</div>
+        <div>${catBadge(book.category)}</div>
+        <div style="font-size:13px">${book.copies}</div>
+        <div style="font-size:13px">₱${book.price}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-xs" onclick='openEditBook(${JSON.stringify(book)})'>Edit</button>
+          <button class="btn btn-xs btn-ghost" onclick="archiveBook(${book.id})">${book.status==='archived'?'Restore':'Archive'}</button>
+        </div>
+      </div>`).join('');
+}
+
+function bookModal() {
+  const cats = ['Technology','History','Math','Literature','Science','Social','Other'];
+  return `
+    <div class="modal-overlay" id="bookModal" style="display:none" onclick="closeBookModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header"><h3 id="bookModalTitle">Add Book</h3><button onclick="closeBookModal()" class="modal-close">×</button></div>
+        <input type="hidden" id="bookModalId">
+        <div class="field"><label>Title</label><input id="bm_title"></div>
+        <div class="field"><label>Author</label><input id="bm_author"></div>
+        <div class="field"><label>Category</label>
+          <select id="bm_category">${cats.map(c=>`<option>${c}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Price (₱)</label><input type="number" id="bm_price"></div>
+        <div class="field"><label>Number of Copies</label><input type="number" id="bm_copies"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-outline btn-sm" onclick="closeBookModal()">Cancel</button>
+          <button class="btn btn-primary btn-sm" onclick="saveBook()">Save</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function openAddBook() {
+  document.getElementById('bookModalTitle').textContent = 'Add New Book';
+  document.getElementById('bookModalId').value = '';
+  ['bm_title','bm_author','bm_price','bm_copies'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('bookModal').style.display = 'flex';
+}
+
+function openEditBook(book) {
+  document.getElementById('bookModalTitle').textContent = 'Edit Book';
+  document.getElementById('bookModalId').value = book.id;
+  document.getElementById('bm_title').value = book.title;
+  document.getElementById('bm_author').value = book.author;
+  document.getElementById('bm_category').value = book.category;
+  document.getElementById('bm_price').value = book.price;
+  document.getElementById('bm_copies').value = book.copies;
+  document.getElementById('bookModal').style.display = 'flex';
+}
+
+function closeBookModal() { document.getElementById('bookModal').style.display = 'none'; }
+
+async function saveBook() {
+  const id = document.getElementById('bookModalId').value;
+  const payload = {
+    title: document.getElementById('bm_title').value,
+    author: document.getElementById('bm_author').value,
+    category: document.getElementById('bm_category').value,
+    price: document.getElementById('bm_price').value,
+    copies: document.getElementById('bm_copies').value,
+  };
+  if (!payload.title || !payload.author) { showToast('Title and author required.', 'warning'); return; }
+  if (id) {
+    await fetch(`/api/books/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    showToast('Book updated!');
+  } else {
+    await fetch('/api/books', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    showToast('Book added!');
+  }
+  closeBookModal();
+  renderBooks();
+}
+
+async function archiveBook(id) {
+  await fetch(`/api/books/${id}/archive`, {method:'POST'});
+  showToast('Book status updated.');
+  renderBooks();
+}
+
+// ── USERS ─────────────────────────────────────────────────
+async function renderUsers() {
+  const users = await fetch('/api/users').then(r=>r.json());
+  document.getElementById('mainContent').innerHTML = `
+    <div class="view-pad">
+      <h2 class="view-title">System Users</h2>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${users.map(u=>`
+          <div class="card-row">
+            <div class="user-avatar-lg">${u.username[0].toUpperCase()}</div>
+            <div style="flex:1">
+              <div style="font-weight:500;font-size:14px">${u.username}</div>
+              <div style="font-size:12px;color:var(--text-sec)">${u.email}</div>
+            </div>
+            ${badge(u.role, u.role==='librarian'?'info':u.role==='staff'?'pending':'success')}
+            <div style="font-size:12px;color:var(--text-sec)">${u.activeBorrows} active borrows</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ── ANALYTICS ─────────────────────────────────────────────
+async function renderAnalytics() {
+  const data = await fetch('/api/analytics').then(r=>r.json());
+  const maxCat = Math.max(...data.categoryData.map(d=>d.count), 1);
+  document.getElementById('mainContent').innerHTML = `
+    <div class="view-pad">
+      <h2 class="view-title">Analytics Overview</h2>
+      <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+        ${statCard('Active Books', data.totalBooks, 'in circulation', '#185FA5')}
+        ${statCard('Borrowed Now', data.totalBorrowed, 'active loans', '#0F6E56')}
+        ${statCard('Overdue', data.totalOverdue, 'need attention', '#A32D2D')}
+        ${statCard('Total Returned', data.totalReturned, 'all time', '#3B6D11')}
+        ${statCard('Penalties', '₱'+data.totalPenalties, 'outstanding', '#854F0B')}
+        ${statCard('Pending Requests', data.pendingRequests, 'awaiting approval', '#534AB7')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:1.5rem">
+        <div class="card">
+          <div class="card-title">Borrows by category</div>
+          ${data.categoryData.length===0 ? '<div class="empty">No data yet</div>' : data.categoryData.map(d=>`
+            <div style="margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+                <span style="color:var(--text-sec)">${d.cat}</span><span style="font-weight:500">${d.count}</span>
+              </div>
+              <div style="height:6px;background:var(--bg-ter);border-radius:3px;overflow:hidden">
+                <div style="height:100%;width:${(d.count/maxCat)*100}%;background:${CATEGORY_COLORS[d.cat]||'#534AB7'};border-radius:3px;transition:width .4s"></div>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div class="card">
+          <div class="card-title">Top borrowed books</div>
+          ${data.topBooks.length===0 ? '<div class="empty">No data yet</div>' : data.topBooks.map((b,i)=>`
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div style="width:22px;height:22px;border-radius:50%;background:#E6F1FB;color:#185FA5;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
+              <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.title}</div>
+              ${badge(b.count+'x','info')}
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Weekly borrow activity</div>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:80px">
+          ${data.weekly.map(d=>`
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+              <div style="width:100%;background:#185FA5;border-radius:3px 3px 0 0;height:${Math.max(4,(d.value/7)*70)}px;opacity:0.7;transition:height .3s"></div>
+              <div style="font-size:10px;color:var(--text-sec)">${d.label}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── REQUESTS ──────────────────────────────────────────────
+async function renderRequests() {
+  const [requests, borrows] = await Promise.all([
+    fetch('/api/requests').then(r=>r.json()),
+    fetch('/api/borrows').then(r=>r.json()),
+  ]);
+  const pending = requests.filter(r=>r.status==='pending');
+  // update badge
+  const badge_el = document.getElementById('reqBadge');
+  if (badge_el) { badge_el.textContent = pending.length; badge_el.style.display = pending.length ? 'inline' : 'none'; }
+
+  document.getElementById('mainContent').innerHTML = `
+    <div class="view-pad">
+      <h2 class="view-title">Borrow Requests</h2>
+      ${pending.length===0
+        ? '<div class="empty" style="padding:3rem">No pending requests.</div>'
+        : pending.map(req=>`
+          <div class="card-row" style="margin-bottom:10px;border-radius:var(--radius-lg)">
+            <div style="flex:1">
+              <div style="font-weight:500;font-size:14px">${req.bookTitle}</div>
+              <div style="font-size:12px;color:var(--text-sec);margin-top:2px">Requested by <strong>${req.studentName}</strong> on ${req.requestDate}</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-success btn-sm" onclick="approveReq(${req.id})">Approve</button>
+              <button class="btn btn-danger-outline btn-sm" onclick="declineReq(${req.id})">Decline</button>
+            </div>
+          </div>`).join('')}
+      <h2 class="view-title" style="margin-top:1.5rem">All Transactions</h2>
+      <div class="table-header" style="grid-template-columns:2fr 1.5fr 1fr 1fr 1fr">
+        <span>Book</span><span>Borrower</span><span>Status</span><span>Borrowed</span><span>Due</span>
+      </div>
+      ${borrows.slice().reverse().map(b=>`
+        <div class="table-row" style="grid-template-columns:2fr 1.5fr 1fr 1fr 1fr">
+          <div style="font-size:13px;font-weight:500">${b.bookTitle}</div>
+          <div style="font-size:12px;color:var(--text-sec)">${b.username}</div>
+          <div>${badge(b.status,b.status)}</div>
+          <div style="font-size:12px;color:var(--text-sec)">${b.borrowedAt}</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px;color:var(--text-sec)">${b.dueDate}</span>
+            ${b.status==='borrowed'?`<button class="btn btn-xs" onclick="returnBook(${b.id})">Return</button>`:''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+async function approveReq(id) {
+  await fetch(`/api/requests/${id}/approve`, {method:'POST'});
+  showToast('Request approved!');
+  renderRequests();
+}
+async function declineReq(id) {
+  await fetch(`/api/requests/${id}/decline`, {method:'POST'});
+  showToast('Request declined.');
+  renderRequests();
+}
+async function returnBook(id) {
+  await fetch(`/api/borrows/${id}/return`, {method:'POST'});
+  showToast('Book returned!');
+  renderRequests();
+}
+
+// ── BROWSE ────────────────────────────────────────────────
+async function renderBrowse() {
+  const [books, borrows, requests, reservations] = await Promise.all([
+    fetch('/api/books').then(r=>r.json()),
+    fetch('/api/borrows').then(r=>r.json()),
+    fetch('/api/requests').then(r=>r.json()),
+    fetch('/api/reservations').then(r=>r.json()),
+  ]);
+  window._browseBooks = books;
+  window._myBorrows = borrows.filter(b=>b.userId===USER.id && b.status==='borrowed');
+  window._myPending = requests.filter(r=>r.studentId===USER.id && r.status==='pending');
+  window._myReservations = reservations.filter(r=>r.userId===USER.id && r.status==='pending');
+  const MAX = USER.role === 'teacher' ? Infinity : 3;
+  const categories = [...new Set(books.filter(b=>b.status!=='archived').map(b=>b.category))];
+
+  document.getElementById('mainContent').innerHTML = `
+    <div class="view-pad">
+      <h2 class="view-title">Browse Books</h2>
+      ${USER.role==='student' ? `<div class="info-bar">Active borrows: ${window._myBorrows.length} / ${MAX} · Pending requests: ${window._myPending.length}</div>` : ''}
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input id="browseSearch" placeholder="Search title or author…" class="search-input" oninput="filterBrowse()" style="flex:1">
+        <select id="browseCat" class="select-input" onchange="filterBrowse()">
+          <option value="all">All categories</option>
+          ${categories.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="book-grid" id="bookGrid"></div>
+    </div>`;
+  filterBrowse();
+}
+
+function filterBrowse() {
+  const q = (document.getElementById('browseSearch').value||'').toLowerCase();
+  const cat = document.getElementById('browseCat').value;
+  const filtered = window._browseBooks.filter(b =>
+    b.status !== 'archived' &&
+    (b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)) &&
+    (cat === 'all' || b.category === cat));
+  document.getElementById('bookGrid').innerHTML = filtered.map(book => {
+    const borrowed = window._myBorrows.some(b=>b.bookId===book.id);
+    const requested = window._myPending.some(r=>r.bookId===book.id);
+    const reserved = window._myReservations.some(r=>r.bookId===book.id);
+    const color = CATEGORY_COLORS[book.category] || '#534AB7';
+    let actions = '';
+    if (borrowed) actions = badge('You borrowed','success');
+    else if (requested) actions = badge('Request pending','pending');
+    else if (reserved) actions = badge('Reserved','info');
+    else actions = `<div style="display:flex;gap:6px">
+      <button onclick="borrowBook(${book.id})" ${book.copies===0?'disabled':''} style="flex:1;padding:6px 0;border-radius:var(--radius-md);border:none;background:${book.copies>0?'#185FA5':'#B4B2A9'};color:#fff;font-size:12px;cursor:${book.copies>0?'pointer':'default'};font-weight:500">Borrow</button>
+      <button onclick="reserveBook(${book.id})" style="flex:1;padding:6px 0;border-radius:var(--radius-md);border:0.5px solid var(--border-sec);background:transparent;font-size:12px;cursor:pointer;color:var(--text-pri)">Reserve</button>
+    </div>`;
+    return `<div class="book-card">
+      <div style="width:100%;height:6px;border-radius:3px;background:${color};opacity:0.7;margin-bottom:8px"></div>
+      <div style="font-size:13px;font-weight:500;line-height:1.4;margin-bottom:4px">${book.title}</div>
+      <div style="font-size:12px;color:var(--text-sec);margin-bottom:8px">by ${book.author}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        ${catBadge(book.category)}
+        <span style="font-size:12px;color:var(--text-sec)">${book.copies} copies</span>
+      </div>
+      <div style="font-size:13px;font-weight:500;color:#185FA5;margin-bottom:8px">₱${book.price}</div>
+      ${actions}
+    </div>`;
+  }).join('');
+}
+
+async function borrowBook(bookId) {
+  const MAX = USER.role === 'teacher' ? Infinity : 3;
+  const alreadyBorrowed = window._myBorrows.some(b=>b.bookId===bookId);
+  const alreadyRequested = window._myPending.some(r=>r.bookId===bookId);
+  if (alreadyBorrowed || alreadyRequested) { showToast('Already borrowed or requested.','warning'); return; }
+  if ((window._myBorrows.length + window._myPending.length) >= MAX) { showToast(`Borrow limit reached (${MAX}).`,'warning'); return; }
+  await fetch('/api/requests', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bookId})});
+  showToast('Borrow request submitted!');
+  renderBrowse();
+}
+
+async function reserveBook(bookId) {
+  if (window._myReservations.some(r=>r.bookId===bookId)) { showToast('Already reserved.','warning'); return; }
+  await fetch('/api/reservations', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bookId})});
+  showToast('Book reserved!');
+  renderBrowse();
+}
+
+// ── MY BOOKS ──────────────────────────────────────────────
+async function renderMyBooks() {
+  const [borrows, requests, reservations] = await Promise.all([
+    fetch('/api/borrows').then(r=>r.json()),
+    fetch('/api/requests').then(r=>r.json()),
+    fetch('/api/reservations').then(r=>r.json()),
+  ]);
+  const myBorrows = borrows.filter(b=>b.userId===USER.id);
+  const myPending = requests.filter(r=>r.studentId===USER.id);
+  const myRes = reservations.filter(r=>r.userId===USER.id);
+  const totalPenalty = myBorrows.reduce((s,b)=>s+(b.penalty||0),0);
+  const active = myBorrows.filter(b=>b.status==='borrowed'||b.status==='overdue');
+  const cleared = active.length===0 && totalPenalty===0;
+
+  document.getElementById('mainContent').innerHTML = `
+    <div class="view-pad">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.5rem">
+        <div style="background:${cleared?'#EAF3DE':'#FCEBEB'};border-radius:var(--radius-lg);padding:1rem 1.25rem">
+          <div style="font-weight:500;font-size:14px;color:${cleared?'#3B6D11':'#A32D2D'}">${cleared?'✓ Clearance: Cleared':'✗ Clearance: Not Cleared'}</div>
+          ${!cleared && totalPenalty>0 ? `<div style="font-size:12px;margin-top:4px;color:#A32D2D">Outstanding penalty: ₱${totalPenalty.toFixed(2)}</div>` : ''}
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active borrows</div>
+          <div class="stat-value">${myBorrows.filter(b=>b.status==='borrowed').length}${USER.role==='student'?' / 3':''}</div>
+        </div>
+      </div>
+      <h3 style="font-size:14px;font-weight:500;margin:0 0 10px">Borrowed Books</h3>
+      ${active.length===0 ? '<div class="empty" style="margin-bottom:20px">No active borrows.</div>' : active.map(b=>{
+        const overdue = new Date(b.dueDate)<new Date();
+        return `<div class="card-row" style="border:0.5px solid ${overdue?'#F09595':'var(--border-ter)'};margin-bottom:10px;border-radius:var(--radius-lg)">
+          <div style="flex:1">
+            <div style="font-weight:500;font-size:14px">${b.bookTitle}</div>
+            <div style="font-size:12px;color:var(--text-sec);margin-top:2px">Due: ${b.dueDate} ${overdue?'<span style="color:#A32D2D;font-weight:600">— OVERDUE</span>':''}</div>
+            ${b.penalty>0?`<div style="font-size:12px;color:#A32D2D;margin-top:2px">Penalty: ₱${b.penalty}</div>`:''}
+          </div>
+          ${badge(b.status,b.status)}
+        </div>`;
+      }).join('')}
+      <h3 style="font-size:14px;font-weight:500;margin:1rem 0 10px">Borrow Requests</h3>
+      ${myPending.length===0 ? '<div class="empty" style="margin-bottom:20px">No requests.</div>' : myPending.map(r=>`
+        <div class="card-row-sm">${r.bookTitle} ${badge(r.status,r.status)}</div>`).join('')}
+      <h3 style="font-size:14px;font-weight:500;margin:1rem 0 10px">Reservations</h3>
+      ${myRes.length===0 ? '<div class="empty">No reservations.</div>' : myRes.map(r=>`
+        <div class="card-row-sm">${r.bookTitle} ${badge(r.status,r.status)}</div>`).join('')}
+    </div>`;
+}
+
+// ── CHATBOT ───────────────────────────────────────────────
+function toggleChat() {
+  const c = document.getElementById('chatbot');
+  c.style.display = c.style.display === 'none' ? 'flex' : 'none';
+  if (c.style.display === 'flex') renderChatMessages();
+}
+
+function loadChatHistory() { renderChatMessages(); }
+
+function renderChatMessages() {
+  const container = document.getElementById('chatMessages');
+  container.innerHTML = chatMessages.map(m=>`
+    <div style="display:flex;justify-content:${m.role==='user'?'flex-end':'flex-start'}">
+      <div style="max-width:82%;padding:8px 12px;border-radius:${m.role==='user'?'12px 12px 2px 12px':'12px 12px 12px 2px'};background:${m.role==='user'?'#185FA5':'var(--bg-sec)'};color:${m.role==='user'?'#fff':'var(--text-pri)'};font-size:13px;line-height:1.5;white-space:pre-wrap">${m.content}</div>
+    </div>`).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  chatMessages.push({role:'user', content:msg});
+  input.value = '';
+  const sendBtn = document.getElementById('chatSend');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '…';
+  renderChatMessages();
+
+  // Show thinking
+  const container = document.getElementById('chatMessages');
+  const thinking = document.createElement('div');
+  thinking.style.cssText = 'display:flex;justify-content:flex-start';
+  thinking.innerHTML = '<div style="padding:8px 12px;border-radius:12px 12px 12px 2px;background:var(--bg-sec);font-size:13px;color:var(--text-sec)">Thinking…</div>';
+  container.appendChild(thinking);
+  container.scrollTop = container.scrollHeight;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({messages: chatMessages.slice(-10)})
+    });
+    const data = await res.json();
+    chatMessages.push({role:'assistant', content: data.reply});
+  } catch {
+    chatMessages.push({role:'assistant', content:'Sorry, I\'m having trouble connecting right now.'});
+  }
+  sendBtn.disabled = false;
+  sendBtn.textContent = 'Send';
+  renderChatMessages();
+}
+</script>
+</body>
+</html>

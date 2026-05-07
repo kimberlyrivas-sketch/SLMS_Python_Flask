@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Library System — Sign In</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="auth-body">
+
+<div class="auth-card" id="loginCard">
+  <div class="auth-header">
+    <div class="auth-icon">📚</div>
+    <h1 class="auth-title">Library System</h1>
+    <p class="auth-sub">Sign in to continue</p>
+  </div>
+  <div id="loginError" class="alert alert-danger" style="display:none"></div>
+  <div class="field">
+    <label>Username</label>
+    <input type="text" id="username" placeholder="Enter username" autocomplete="username">
+  </div>
+  <div class="field">
+    <label>Password</label>
+    <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
+  </div>
+  <button class="btn btn-primary btn-block" onclick="doLogin()">Sign In</button>
+  <button class="btn btn-outline btn-block" onclick="showRegister()">Create Account</button>
+  <div class="test-accounts">
+    <div class="test-accounts-title">Test accounts:</div>
+    <div>admin / admin123 (Librarian)</div>
+    <div>staff1 / staff123 (Staff)</div>
+    <div>student1 / student123 (Student)</div>
+    <div>teacher1 / teacher123 (Teacher)</div>
+  </div>
+</div>
+
+<div class="auth-card" id="registerCard" style="display:none">
+  <div class="auth-header">
+    <h1 class="auth-title" style="font-size:18px">Create Account</h1>
+    <p class="auth-sub">Student & Teacher registration</p>
+  </div>
+  <div id="registerError" class="alert alert-danger" style="display:none"></div>
+  <div id="registerSuccess" class="alert alert-success" style="display:none">
+    ✅ Account created! You can now log in.
+  </div>
+  <div class="field">
+    <label>Username</label>
+    <input type="text" id="reg_username">
+  </div>
+  <div class="field">
+    <label>Email</label>
+    <input type="email" id="reg_email">
+  </div>
+  <div class="field">
+    <label>Password</label>
+    <input type="password" id="reg_password">
+  </div>
+  <div class="field">
+    <label>Role</label>
+    <select id="reg_role">
+      <option value="student">Student</option>
+      <option value="teacher">Teacher</option>
+    </select>
+  </div>
+  <button class="btn btn-primary btn-block" onclick="doRegister()">Register</button>
+  <button class="btn btn-outline btn-block" onclick="showLogin()">Back to Login</button>
+</div>
+
+<script>
+function showRegister() {
+  document.getElementById('loginCard').style.display = 'none';
+  document.getElementById('registerCard').style.display = 'block';
+}
+function showLogin() {
+  document.getElementById('registerCard').style.display = 'none';
+  document.getElementById('loginCard').style.display = 'block';
+}
+
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+async function doLogin() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value.trim();
+  const err = document.getElementById('loginError');
+  err.style.display = 'none';
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username, password})
+  });
+  const data = await res.json();
+  if (data.ok) {
+    window.location.href = '/app';
+  } else {
+    err.textContent = data.error;
+    err.style.display = 'block';
+  }
+}
+
+async function doRegister() {
+  const username = document.getElementById('reg_username').value.trim();
+  const email = document.getElementById('reg_email').value.trim();
+  const password = document.getElementById('reg_password').value.trim();
+  const role = document.getElementById('reg_role').value;
+  const err = document.getElementById('registerError');
+  const suc = document.getElementById('registerSuccess');
+  err.style.display = 'none'; suc.style.display = 'none';
+  const res = await fetch('/api/register', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username, email, password, role})
+  });
+  const data = await res.json();
+  if (data.ok) {
+    suc.style.display = 'block';
+    setTimeout(showLogin, 2000);
+  } else {
+    err.textContent = data.error;
+    err.style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>
