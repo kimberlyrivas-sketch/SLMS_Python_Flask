@@ -393,7 +393,7 @@ def api_analytics():
 import time
 import traceback
 
-GEMINI_API_KEY = "AIzaSyB1VP9l56ZAJB-FXQNNF3M5AoaHi8iKgLc"
+GEMINI_API_KEY = "AIzaSyCwPejSnALmYI9rDsXjXCo5uMUIQYfZqmA"
 
 @app.route("/api/chat", methods=["POST"])
 @login_required
