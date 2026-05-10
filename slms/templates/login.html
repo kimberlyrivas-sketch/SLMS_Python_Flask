@@ -3,67 +3,138 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Library System — Sign In</title>
+<title>Smart Library</title>
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body class="auth-body">
+<body>
 
-<div class="auth-card" id="loginCard">
-  <div class="auth-header">
-    <div class="auth-icon">📚</div>
-    <h1 class="auth-title">Library System</h1>
-    <p class="auth-sub">Sign in to continue</p>
-  </div>
-  <div id="loginError" class="alert alert-danger" style="display:none"></div>
-  <div class="field">
-    <label>Username</label>
-    <input type="text" id="username" placeholder="Enter username" autocomplete="username">
-  </div>
-  <div class="field">
-    <label>Password</label>
-    <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
-  </div>
-  <button class="btn btn-primary btn-block" onclick="doLogin()">Sign In</button>
-  <button class="btn btn-outline btn-block" onclick="showRegister()">Create Account</button>
-  <div class="test-accounts">
-    <div class="test-accounts-title">Test accounts:</div>
-    <div>admin / admin123 (Librarian)</div>
-    <div>staff1 / staff123 (Staff)</div>
-    <div>student1 / student123 (Student)</div>
-    <div>teacher1 / teacher123 (Teacher)</div>
-  </div>
-</div>
+<div class="auth-container">
 
-<div class="auth-card" id="registerCard" style="display:none">
-  <div class="auth-header">
-    <h1 class="auth-title" style="font-size:18px">Create Account</h1>
-    <p class="auth-sub">Student & Teacher registration</p>
+  <!-- LEFT — bookshelf photo panel -->
+  <div class="auth-left">
+    <div class="auth-left-content">
+      <div class="auth-left-logo">
+        <svg class="book-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="3" width="7" height="18" rx="1.5" fill="white" opacity="0.9"/>
+          <rect x="13" y="3" width="8" height="18" rx="1.5" fill="white"/>
+          <rect x="10" y="3" width="1.5" height="18" fill="rgba(255,255,255,0.5)"/>
+        </svg>
+        <span class="auth-left-title">Smart Library</span>
+      </div>
+      <div class="auth-left-sub">Multi-User Management System</div>
+    </div>
   </div>
-  <div id="registerError" class="alert alert-danger" style="display:none"></div>
-  <div id="registerSuccess" class="alert alert-success" style="display:none">
-    ✅ Account created! You can now log in.
-  </div>
-  <div class="field">
-    <label>Username</label>
-    <input type="text" id="reg_username">
-  </div>
-  <div class="field">
-    <label>Email</label>
-    <input type="email" id="reg_email">
-  </div>
-  <div class="field">
-    <label>Password</label>
-    <input type="password" id="reg_password">
-  </div>
-  <div class="field">
-    <label>Role</label>
-    <select id="reg_role">
-      <option value="student">Student</option>
-      <option value="teacher">Teacher</option>
-    </select>
-  </div>
-  <button class="btn btn-primary btn-block" onclick="doRegister()">Register</button>
-  <button class="btn btn-outline btn-block" onclick="showLogin()">Back to Login</button>
+
+  <!-- RIGHT — sign in panel -->
+  <div class="auth-right">
+
+    <!-- LOGIN CARD -->
+    <div class="auth-card" id="loginCard">
+      <div class="auth-header">
+        <div class="auth-welcome">Welcome</div>
+        <div class="auth-sub">Sign in to continue</div>
+      </div>
+
+      <div id="loginError" class="alert alert-danger" style="display:none"></div>
+
+      <div class="field">
+        <label>Username</label>
+        <span class="field-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </span>
+        <input type="text" id="username" placeholder="Username" autocomplete="username">
+      </div>
+
+      <div class="field">
+        <label>Password</label>
+        <span class="field-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </span>
+        <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+      </div>
+
+      <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
+
+      <div class="auth-switch">
+        You are new? <a onclick="showRegister()">Create new</a>
+      </div>
+    </div>
+
+    <!-- REGISTER CARD -->
+    <div class="auth-card" id="registerCard" style="display:none">
+      <div class="auth-header">
+        <div class="auth-welcome">Create Account</div>
+        <div class="auth-sub">Student &amp; Teacher Registration</div>
+      </div>
+
+      <div id="registerError" class="alert alert-danger" style="display:none"></div>
+      <div id="registerSuccess" class="alert alert-success" style="display:none">
+        Account created successfully!
+      </div>
+
+      <div class="field">
+        <label>Username</label>
+        <span class="field-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </span>
+        <input type="text" id="reg_username" placeholder="Username">
+      </div>
+
+      <div class="field">
+        <label>Email</label>
+        <span class="field-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+        </span>
+        <input type="email" id="reg_email" placeholder="Email address">
+      </div>
+
+      <div class="field">
+        <label>Password</label>
+        <span class="field-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </span>
+        <input type="password" id="reg_password" placeholder="Password">
+      </div>
+
+      <div class="field">
+        <label>Role</label>
+        <span class="field-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </span>
+        <select id="reg_role" style="padding-left:42px">
+          <option value="student">Student</option>
+          <option value="teacher">Teacher</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" onclick="doRegister()">Create Account</button>
+
+      <div class="auth-switch">
+        Already have an account? <a onclick="showLogin()">Sign in</a>
+      </div>
+    </div>
+
+  </div><!-- /auth-right -->
 </div>
 
 <script>
@@ -76,51 +147,74 @@ function showLogin() {
   document.getElementById('loginCard').style.display = 'block';
 }
 
-document.getElementById('password').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-});
-
 async function doLogin() {
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value.trim();
   const err = document.getElementById('loginError');
   err.style.display = 'none';
-  const res = await fetch('/api/login', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({username, password})
-  });
-  const data = await res.json();
-  if (data.ok) {
-    window.location.href = '/app';
-  } else {
-    err.textContent = data.error;
+  if (!username || !password) {
+    err.textContent = "Please enter username and password";
+    err.style.display = 'block';
+    return;
+  }
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.href = '/app';
+    } else {
+      err.textContent = data.error || "Invalid credentials";
+      err.style.display = 'block';
+    }
+  } catch(e) {
+    err.textContent = "Server error. Try again.";
     err.style.display = 'block';
   }
 }
 
 async function doRegister() {
   const username = document.getElementById('reg_username').value.trim();
-  const email = document.getElementById('reg_email').value.trim();
+  const email    = document.getElementById('reg_email').value.trim();
   const password = document.getElementById('reg_password').value.trim();
-  const role = document.getElementById('reg_role').value;
+  const role     = document.getElementById('reg_role').value;
   const err = document.getElementById('registerError');
   const suc = document.getElementById('registerSuccess');
-  err.style.display = 'none'; suc.style.display = 'none';
-  const res = await fetch('/api/register', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({username, email, password, role})
-  });
-  const data = await res.json();
-  if (data.ok) {
-    suc.style.display = 'block';
-    setTimeout(showLogin, 2000);
-  } else {
-    err.textContent = data.error;
+  err.style.display = 'none';
+  suc.style.display = 'none';
+  if (!username || !email || !password) {
+    err.textContent = "All fields are required";
+    err.style.display = 'block';
+    return;
+  }
+  try {
+    const res = await fetch('/api/register', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ username, email, password, role })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      suc.style.display = 'block';
+      setTimeout(showLogin, 1500);
+    } else {
+      err.textContent = data.error || "Registration failed";
+      err.style.display = 'block';
+    }
+  } catch(e) {
+    err.textContent = "Server error. Try again.";
     err.style.display = 'block';
   }
 }
+
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Enter" && document.getElementById('loginCard').style.display !== 'none') {
+    doLogin();
+  }
+});
 </script>
 </body>
 </html>
