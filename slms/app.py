@@ -427,7 +427,10 @@ def api_analytics():
 import time
 import traceback
 
-GEMINI_API_KEY = "AIzaSyCwPejSnALmYI9rDsXjXCo5uMUIQYfZqmA"
+import os
+from dotenv import load_dotenv
+load_dotenv()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # Updated model list — current working models as of 2025/2026
 # Order: fastest free-tier model first, then fallbacks

@@ -1217,7 +1217,7 @@ async function renderClearance() {
   document.getElementById('mainContent').innerHTML = `
     <div class="view-pad" style="padding-top:1rem">
       <div style="background:${cleared?'#EAF3DE':'#FCEBEB'};border-radius:var(--radius-lg);padding:1.5rem;margin-bottom:1.25rem;text-align:center">
-        <div style="font-size:36px;margin-bottom:8px">${cleared?'✅':'❌'}</div>
+        <div style="font-size:36px;margin-bottom:8px">${cleared?'':''}</div>
         <div style="font-weight:800;font-size:18px;color:${cleared?'#3B6D11':'#A32D2D'}">Clearance: ${cleared?'Cleared':'Not Cleared'}</div>
         ${!cleared&&totalPen>0?`<div style="font-size:13px;margin-top:6px;color:#A32D2D">Outstanding penalty: ₱${totalPen.toFixed(2)}</div>`:''}
         ${!cleared&&active.length>0?`<div style="font-size:13px;margin-top:4px;color:#A32D2D">${active.length} unreturned book(s)</div>`:''}
